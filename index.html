@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sumo Wrestler Quiz</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 24px 0 8px;
+      font-size: 1.8rem;
+    }
+
+    #score {
+      font-size: 1.1rem;
+      color: #aaa;
+      margin-bottom: 20px;
+    }
+
+    #photo-container {
+      width: 300px;
+      height: 380px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #16213e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    #photo-container img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    #options {
+      margin: 24px 0;
+      width: 340px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    #guess-select {
+      flex: 1;
+      padding: 12px;
+      font-size: 1rem;
+      border: 2px solid #444;
+      border-radius: 10px;
+      background: #16213e;
+      color: #eee;
+      cursor: pointer;
+    }
+
+    #submit-btn {
+      padding: 12px 20px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 10px;
+      background: #e94560;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #submit-btn:hover:not(:disabled) {
+      background: #c73652;
+    }
+
+    #submit-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    #feedback {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+      min-height: 1.4em;
+    }
+
+    #feedback.correct { color: #4ecca3; }
+    #feedback.wrong { color: #e94560; }
+
+    #next-btn {
+      padding: 12px 40px;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: 10px;
+      background: #e94560;
+      color: #fff;
+      cursor: pointer;
+      display: none;
+      transition: background 0.2s;
+    }
+
+    #next-btn:hover {
+      background: #c73652;
+    }
+
+    #loading {
+      margin-top: 100px;
+      font-size: 1.2rem;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sumo Wrestler Quiz</h1>
+  <p id="score"></p>
+  <div id="photo-container">
+    <span id="loading">Loading...</span>
+  </div>
+  <div id="options">
+    <select id="guess-select"><option value="">-- Select a wrestler --</option></select>
+    <button id="submit-btn">Submit</button>
+  </div>
+  <p id="feedback"></p>
+  <button id="next-btn">Next</button>
+
+  <script>
+    let wrestlers = [];
+    let correct = 0;
+    let total = 0;
+    let answered = false;
+
+    const scoreEl = document.getElementById("score");
+    const photoContainer = document.getElementById("photo-container");
+    const selectEl = document.getElementById("guess-select");
+    const submitBtn = document.getElementById("submit-btn");
+    const feedbackEl = document.getElementById("feedback");
+    const nextBtn = document.getElementById("next-btn");
+    const loadingEl = document.getElementById("loading");
+
+    let currentAnswer = null;
+
+    function updateScore() {
+      scoreEl.textContent = `Score: ${correct} / ${total}`;
+    }
+
+    function populateDropdown() {
+      const sorted = [...wrestlers].sort((a, b) => a.name.localeCompare(b.name));
+      sorted.forEach(w => {
+        const opt = document.createElement("option");
+        opt.value = w.name;
+        opt.textContent = w.name;
+        selectEl.appendChild(opt);
+      });
+    }
+
+    function loadRound() {
+      answered = false;
+      nextBtn.style.display = "none";
+      feedbackEl.textContent = "";
+      feedbackEl.className = "";
+      selectEl.value = "";
+      selectEl.disabled = false;
+      submitBtn.disabled = false;
+
+      currentAnswer = wrestlers[Math.floor(Math.random() * wrestlers.length)];
+
+      const img = document.createElement("img");
+      img.src = `wiki_images/${encodeURIComponent(currentAnswer.image)}`;
+      img.alt = "Sumo wrestler";
+      photoContainer.innerHTML = "";
+      photoContainer.appendChild(img);
+    }
+
+    submitBtn.addEventListener("click", () => {
+      if (answered || !selectEl.value) return;
+      answered = true;
+      total++;
+
+      const selected = selectEl.value;
+      selectEl.disabled = true;
+      submitBtn.disabled = true;
+
+      if (selected === currentAnswer.name) {
+        correct++;
+        feedbackEl.textContent = "Correct!";
+        feedbackEl.className = "correct";
+      } else {
+        feedbackEl.textContent = `Wrong! It was ${currentAnswer.name}`;
+        feedbackEl.className = "wrong";
+      }
+
+      updateScore();
+      nextBtn.style.display = "inline-block";
+    });
+
+    nextBtn.addEventListener("click", loadRound);
+
+    fetch("wiki_images/wrestlers.json")
+      .then(res => res.json())
+      .then(data => {
+        wrestlers = data;
+        populateDropdown();
+        updateScore();
+        loadRound();
+      })
+      .catch(err => {
+        loadingEl.textContent = "Failed to load wrestlers.json. Make sure to serve via a local server (python3 -m http.server).";
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
