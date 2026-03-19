@@ -115,6 +115,64 @@
       font-size: 1.2rem;
       color: #aaa;
     }
+
+    #stats-panel {
+      width: 340px;
+      margin-top: 24px;
+      margin-bottom: 32px;
+    }
+
+    #stats-panel summary {
+      cursor: pointer;
+      color: #aaa;
+      font-size: 0.9rem;
+      padding: 6px 0;
+      user-select: none;
+    }
+
+    #stats-grid {
+      margin-top: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #16213e;
+    }
+
+    .stat-row {
+      display: flex;
+      align-items: center;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      border-bottom: 1px solid #222;
+      gap: 8px;
+    }
+
+    .stat-row:last-child { border-bottom: none; }
+
+    .stat-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .stat-name { flex: 1; }
+
+    .stat-counts { color: #888; font-size: 0.8rem; }
+
+    #reset-btn {
+      margin-top: 10px;
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      border: 1px solid #555;
+      border-radius: 8px;
+      background: transparent;
+      color: #aaa;
+      cursor: pointer;
+    }
+
+    #reset-btn:hover { border-color: #e94560; color: #e94560; }
   </style>
 </head>
 <body>
@@ -130,11 +188,23 @@
   <p id="feedback"></p>
   <button id="next-btn">Next</button>
 
+  <details id="stats-panel">
+    <summary>Show progress</summary>
+    <div id="stats-grid"></div>
+    <button id="reset-btn">Reset Progress</button>
+  </details>
+
   <script>
+    const STORAGE_KEY = "sumo-quiz-stats";
+    const BASE_WEIGHT = 1;
+    const SCALE_WEIGHT = 9;
+    const UNSEEN_ERROR_RATE = 0.5;
+
     let wrestlers = [];
     let correct = 0;
     let total = 0;
     let answered = false;
+    let currentAnswer = null;
 
     const scoreEl = document.getElementById("score");
     const photoContainer = document.getElementById("photo-container");
@@ -142,25 +212,87 @@
     const submitBtn = document.getElementById("submit-btn");
     const feedbackEl = document.getElementById("feedback");
     const nextBtn = document.getElementById("next-btn");
-    const loadingEl = document.getElementById("loading");
+    const statsGrid = document.getElementById("stats-grid");
 
-    let currentAnswer = null;
+    function loadStats() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+      catch { return {}; }
+    }
+
+    function saveStats(stats) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+    }
+
+    function getWrestlerStats(stats, name) {
+      return stats[name] || { correct: 0, wrong: 0 };
+    }
+
+    function computeWeight(name, stats) {
+      const s = getWrestlerStats(stats, name);
+      const attempts = s.correct + s.wrong;
+      const errorRate = attempts === 0 ? UNSEEN_ERROR_RATE : s.wrong / attempts;
+      return BASE_WEIGHT + errorRate * SCALE_WEIGHT;
+    }
+
+    function weightedPick(stats) {
+      const weights = wrestlers.map(w => computeWeight(w.name, stats));
+      const total = weights.reduce((a, b) => a + b, 0);
+      let r = Math.random() * total;
+      for (let i = 0; i < wrestlers.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return wrestlers[i];
+      }
+      return wrestlers[wrestlers.length - 1];
+    }
+
+    function getGlyph(name, stats) {
+      const s = getWrestlerStats(stats, name);
+      const attempts = s.correct + s.wrong;
+      if (attempts === 0) return "○";
+      const errorRate = s.wrong / attempts;
+      if (errorRate < 0.25) return "✓";
+      if (errorRate < 0.75) return "~";
+      return "✗";
+    }
+
+    function populateDropdown(stats) {
+      while (selectEl.options.length > 1) selectEl.remove(1);
+      const sorted = [...wrestlers].sort((a, b) => a.name.localeCompare(b.name));
+      sorted.forEach(w => {
+        const opt = document.createElement("option");
+        opt.value = w.name;
+        opt.textContent = `${getGlyph(w.name, stats)} ${w.name}`;
+        selectEl.appendChild(opt);
+      });
+    }
+
+    function renderStatsPanel(stats) {
+      statsGrid.innerHTML = "";
+      const sorted = [...wrestlers].sort((a, b) => a.name.localeCompare(b.name));
+      sorted.forEach(w => {
+        const s = getWrestlerStats(stats, w.name);
+        const attempts = s.correct + s.wrong;
+        const errorRate = attempts === 0 ? UNSEEN_ERROR_RATE : s.wrong / attempts;
+        const color = errorRate < 0.25 ? "#4ecca3"
+                    : errorRate < 0.75 ? "#f5a623"
+                    : "#e94560";
+        const row = document.createElement("div");
+        row.className = "stat-row";
+        row.innerHTML = `
+          <span class="stat-dot" style="background:${color}"></span>
+          <span class="stat-name">${w.name}</span>
+          <span class="stat-counts">${attempts === 0 ? "not seen" : `${s.correct}✓ ${s.wrong}✗`}</span>
+        `;
+        statsGrid.appendChild(row);
+      });
+    }
 
     function updateScore() {
       scoreEl.textContent = `Score: ${correct} / ${total}`;
     }
 
-    function populateDropdown() {
-      const sorted = [...wrestlers].sort((a, b) => a.name.localeCompare(b.name));
-      sorted.forEach(w => {
-        const opt = document.createElement("option");
-        opt.value = w.name;
-        opt.textContent = w.name;
-        selectEl.appendChild(opt);
-      });
-    }
-
     function loadRound() {
+      const stats = loadStats();
       answered = false;
       nextBtn.style.display = "none";
       feedbackEl.textContent = "";
@@ -169,7 +301,7 @@
       selectEl.disabled = false;
       submitBtn.disabled = false;
 
-      currentAnswer = wrestlers[Math.floor(Math.random() * wrestlers.length)];
+      currentAnswer = weightedPick(stats);
 
       const img = document.createElement("img");
       img.src = `wiki_images/${encodeURIComponent(currentAnswer.image)}`;
@@ -187,31 +319,50 @@
       selectEl.disabled = true;
       submitBtn.disabled = true;
 
+      const stats = loadStats();
+      if (!stats[currentAnswer.name]) stats[currentAnswer.name] = { correct: 0, wrong: 0 };
+
       if (selected === currentAnswer.name) {
         correct++;
+        stats[currentAnswer.name].correct++;
         feedbackEl.textContent = "Correct!";
         feedbackEl.className = "correct";
       } else {
+        stats[currentAnswer.name].wrong++;
         feedbackEl.textContent = `Wrong! It was ${currentAnswer.name}`;
         feedbackEl.className = "wrong";
       }
 
+      saveStats(stats);
       updateScore();
+      renderStatsPanel(stats);
+      populateDropdown(stats);
       nextBtn.style.display = "inline-block";
     });
 
     nextBtn.addEventListener("click", loadRound);
 
+    document.getElementById("reset-btn").addEventListener("click", () => {
+      if (confirm("Reset all progress? This cannot be undone.")) {
+        localStorage.removeItem(STORAGE_KEY);
+        const stats = {};
+        renderStatsPanel(stats);
+        populateDropdown(stats);
+      }
+    });
+
     fetch("wiki_images/wrestlers.json")
       .then(res => res.json())
       .then(data => {
         wrestlers = data;
-        populateDropdown();
+        const stats = loadStats();
+        populateDropdown(stats);
+        renderStatsPanel(stats);
         updateScore();
         loadRound();
       })
       .catch(err => {
-        loadingEl.textContent = "Failed to load wrestlers.json. Make sure to serve via a local server (python3 -m http.server).";
+        document.getElementById("loading").textContent = "Failed to load wrestlers.json. Make sure to serve via a local server (python3 -m http.server).";
         console.error(err);
       });
   </script>
