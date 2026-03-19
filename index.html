@@ -54,7 +54,7 @@
       align-items: center;
     }
 
-    #guess-select {
+    #guess-input {
       flex: 1;
       padding: 12px;
       font-size: 1rem;
@@ -62,7 +62,13 @@
       border-radius: 10px;
       background: #16213e;
       color: #eee;
-      cursor: pointer;
+    }
+
+    #guess-input::placeholder { color: #666; }
+
+    #guess-input:focus {
+      outline: none;
+      border-color: #e94560;
     }
 
     #submit-btn {
@@ -203,7 +209,8 @@
     <span id="loading">Loading...</span>
   </div>
   <div id="options">
-    <select id="guess-select"><option value="">-- Select a wrestler --</option></select>
+    <input id="guess-input" list="wrestler-list" placeholder="Type a wrestler name..." autocomplete="off">
+    <datalist id="wrestler-list"></datalist>
     <button id="submit-btn">Submit</button>
     <button id="idk-btn">I don't know</button>
   </div>
@@ -230,7 +237,8 @@
 
     const scoreEl = document.getElementById("score");
     const photoContainer = document.getElementById("photo-container");
-    const selectEl = document.getElementById("guess-select");
+    const inputEl = document.getElementById("guess-input");
+    const datalistEl = document.getElementById("wrestler-list");
     const submitBtn = document.getElementById("submit-btn");
     const feedbackEl = document.getElementById("feedback");
     const nextBtn = document.getElementById("next-btn");
@@ -268,24 +276,13 @@
       return wrestlers[wrestlers.length - 1];
     }
 
-    function getGlyph(name, stats) {
-      const s = getWrestlerStats(stats, name);
-      const attempts = s.correct + s.wrong;
-      if (attempts === 0) return "○";
-      const errorRate = s.wrong / attempts;
-      if (errorRate < 0.25) return "✓";
-      if (errorRate < 0.75) return "~";
-      return "✗";
-    }
-
-    function populateDropdown(stats) {
-      while (selectEl.options.length > 1) selectEl.remove(1);
+    function populateDropdown() {
+      datalistEl.innerHTML = "";
       const sorted = [...wrestlers].sort((a, b) => a.name.localeCompare(b.name));
       sorted.forEach(w => {
         const opt = document.createElement("option");
         opt.value = w.name;
-        opt.textContent = `${getGlyph(w.name, stats)} ${w.name}`;
-        selectEl.appendChild(opt);
+        datalistEl.appendChild(opt);
       });
     }
 
@@ -320,8 +317,8 @@
       nextBtn.style.display = "none";
       feedbackEl.textContent = "";
       feedbackEl.className = "";
-      selectEl.value = "";
-      selectEl.disabled = false;
+      inputEl.value = "";
+      inputEl.disabled = false;
       submitBtn.disabled = false;
       idkBtn.disabled = false;
 
@@ -335,12 +332,13 @@
     }
 
     submitBtn.addEventListener("click", () => {
-      if (answered || !selectEl.value) return;
+      const selected = inputEl.value.trim();
+      const isValid = wrestlers.some(w => w.name === selected);
+      if (answered || !isValid) return;
       answered = true;
       total++;
 
-      const selected = selectEl.value;
-      selectEl.disabled = true;
+      inputEl.disabled = true;
       submitBtn.disabled = true;
       idkBtn.disabled = true;
 
@@ -361,7 +359,6 @@
       saveStats(stats);
       updateScore();
       renderStatsPanel(stats);
-      populateDropdown(stats);
       nextBtn.style.display = "inline-block";
     });
 
@@ -371,7 +368,7 @@
       if (answered) return;
       answered = true;
       total++;
-      selectEl.disabled = true;
+      inputEl.disabled = true;
       submitBtn.disabled = true;
       idkBtn.disabled = true;
 
@@ -385,16 +382,13 @@
       saveStats(stats);
       updateScore();
       renderStatsPanel(stats);
-      populateDropdown(stats);
       nextBtn.style.display = "inline-block";
     });
 
     document.getElementById("reset-btn").addEventListener("click", () => {
       if (confirm("Reset all progress? This cannot be undone.")) {
         localStorage.removeItem(STORAGE_KEY);
-        const stats = {};
-        renderStatsPanel(stats);
-        populateDropdown(stats);
+        renderStatsPanel({});
       }
     });
 
@@ -403,7 +397,7 @@
       .then(data => {
         wrestlers = data;
         const stats = loadStats();
-        populateDropdown(stats);
+        populateDropdown();
         renderStatsPanel(stats);
         updateScore();
         loadRound();
