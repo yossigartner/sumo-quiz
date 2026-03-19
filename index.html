@@ -122,6 +122,36 @@
       color: #aaa;
     }
 
+    #progress-container {
+      width: 340px;
+      margin-bottom: 16px;
+    }
+
+    #progress-label {
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    #progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: #16213e;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid #333;
+    }
+
+    #progress-bar-fill {
+      height: 100%;
+      background: #4ecca3;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+      width: 0%;
+    }
+
     #stats-panel {
       width: 340px;
       margin-top: 24px;
@@ -205,6 +235,10 @@
 <body>
   <h1>Sumo Wrestler Quiz</h1>
   <p id="score"></p>
+  <div id="progress-container">
+    <div id="progress-label"><span>Mastered</span><span id="progress-text">0 / 0</span></div>
+    <div id="progress-bar-bg"><div id="progress-bar-fill"></div></div>
+  </div>
   <div id="photo-container">
     <span id="loading">Loading...</span>
   </div>
@@ -244,6 +278,13 @@
     const nextBtn = document.getElementById("next-btn");
     const idkBtn = document.getElementById("idk-btn");
     const statsGrid = document.getElementById("stats-grid");
+    const progressFill = document.getElementById("progress-bar-fill");
+    const progressText = document.getElementById("progress-text");
+
+    // Strip diacritics: ō→o, ū→u, ā→a, etc.
+    function normalizeName(name) {
+      return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
 
     function loadStats() {
       try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
@@ -281,9 +322,20 @@
       const sorted = [...wrestlers].sort((a, b) => a.name.localeCompare(b.name));
       sorted.forEach(w => {
         const opt = document.createElement("option");
-        opt.value = w.name;
+        opt.value = normalizeName(w.name);
         datalistEl.appendChild(opt);
       });
+    }
+
+    function updateProgress(stats) {
+      const mastered = wrestlers.filter(w => {
+        const s = getWrestlerStats(stats, w.name);
+        const attempts = s.correct + s.wrong;
+        return attempts >= 3 && (s.wrong / attempts) < 0.25;
+      }).length;
+      const pct = wrestlers.length ? (mastered / wrestlers.length) * 100 : 0;
+      progressFill.style.width = `${pct}%`;
+      progressText.textContent = `${mastered} / ${wrestlers.length}`;
     }
 
     function renderStatsPanel(stats) {
@@ -333,7 +385,7 @@
 
     submitBtn.addEventListener("click", () => {
       const selected = inputEl.value.trim();
-      const isValid = wrestlers.some(w => w.name === selected);
+      const isValid = wrestlers.some(w => normalizeName(w.name) === selected);
       if (answered || !isValid) return;
       answered = true;
       total++;
@@ -345,7 +397,7 @@
       const stats = loadStats();
       if (!stats[currentAnswer.name]) stats[currentAnswer.name] = { correct: 0, wrong: 0 };
 
-      if (selected === currentAnswer.name) {
+      if (normalizeName(currentAnswer.name) === selected) {
         correct++;
         stats[currentAnswer.name].correct++;
         feedbackEl.textContent = "Correct!";
@@ -358,6 +410,7 @@
 
       saveStats(stats);
       updateScore();
+      updateProgress(stats);
       renderStatsPanel(stats);
       nextBtn.style.display = "inline-block";
     });
@@ -381,6 +434,7 @@
 
       saveStats(stats);
       updateScore();
+      updateProgress(stats);
       renderStatsPanel(stats);
       nextBtn.style.display = "inline-block";
     });
@@ -389,6 +443,7 @@
       if (confirm("Reset all progress? This cannot be undone.")) {
         localStorage.removeItem(STORAGE_KEY);
         renderStatsPanel({});
+        updateProgress({});
       }
     });
 
@@ -399,6 +454,7 @@
         const stats = loadStats();
         populateDropdown();
         renderStatsPanel(stats);
+        updateProgress(stats);
         updateScore();
         loadRound();
       })
