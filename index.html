@@ -173,6 +173,27 @@
     }
 
     #reset-btn:hover { border-color: #e94560; color: #e94560; }
+
+    #idk-btn {
+      padding: 12px 20px;
+      font-size: 1rem;
+      border: 2px solid #444;
+      border-radius: 10px;
+      background: transparent;
+      color: #aaa;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    #idk-btn:hover:not(:disabled) {
+      border-color: #f5a623;
+      color: #f5a623;
+    }
+
+    #idk-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
   </style>
 </head>
 <body>
@@ -184,6 +205,7 @@
   <div id="options">
     <select id="guess-select"><option value="">-- Select a wrestler --</option></select>
     <button id="submit-btn">Submit</button>
+    <button id="idk-btn">I don't know</button>
   </div>
   <p id="feedback"></p>
   <button id="next-btn">Next</button>
@@ -212,6 +234,7 @@
     const submitBtn = document.getElementById("submit-btn");
     const feedbackEl = document.getElementById("feedback");
     const nextBtn = document.getElementById("next-btn");
+    const idkBtn = document.getElementById("idk-btn");
     const statsGrid = document.getElementById("stats-grid");
 
     function loadStats() {
@@ -300,6 +323,7 @@
       selectEl.value = "";
       selectEl.disabled = false;
       submitBtn.disabled = false;
+      idkBtn.disabled = false;
 
       currentAnswer = weightedPick(stats);
 
@@ -318,6 +342,7 @@
       const selected = selectEl.value;
       selectEl.disabled = true;
       submitBtn.disabled = true;
+      idkBtn.disabled = true;
 
       const stats = loadStats();
       if (!stats[currentAnswer.name]) stats[currentAnswer.name] = { correct: 0, wrong: 0 };
@@ -341,6 +366,28 @@
     });
 
     nextBtn.addEventListener("click", loadRound);
+
+    idkBtn.addEventListener("click", () => {
+      if (answered) return;
+      answered = true;
+      total++;
+      selectEl.disabled = true;
+      submitBtn.disabled = true;
+      idkBtn.disabled = true;
+
+      const stats = loadStats();
+      if (!stats[currentAnswer.name]) stats[currentAnswer.name] = { correct: 0, wrong: 0 };
+      stats[currentAnswer.name].wrong++;
+
+      feedbackEl.textContent = `It's ${currentAnswer.name}`;
+      feedbackEl.className = "wrong";
+
+      saveStats(stats);
+      updateScore();
+      renderStatsPanel(stats);
+      populateDropdown(stats);
+      nextBtn.style.display = "inline-block";
+    });
 
     document.getElementById("reset-btn").addEventListener("click", () => {
       if (confirm("Reset all progress? This cannot be undone.")) {
