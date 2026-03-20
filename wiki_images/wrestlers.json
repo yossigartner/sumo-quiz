@@ -72,10 +72,6 @@
     "image": "Kotozakura_Masakatsu_II.jpg"
   },
   {
-    "name": "Meisei",
-    "image": "Meisei_Chikara.jpg"
-  },
-  {
     "name": "Midorifuji",
     "image": "Midorifuji_Kazunari.jpg"
   },
@@ -110,10 +106,6 @@
   {
     "name": "Ryūden",
     "image": "Ry%C5%ABden_G%C5%8Dshi.jpg"
-  },
-  {
-    "name": "Sadanoumi",
-    "image": "Sadanoumi_Takashi.JPG"
   },
   {
     "name": "Shishi",
@@ -162,5 +154,25 @@
   {
     "name": "Yoshinofuji",
     "image": "Yoshinofuji_Naoya.jpg"
+  },
+  {
+    "name": "Ōshōumi",
+    "image": ""
+  },
+  {
+    "name": "Kotoeihō",
+    "image": ""
+  },
+  {
+    "name": "Fujiseiun",
+    "image": ""
+  },
+  {
+    "name": "Fujiryōga",
+    "image": ""
+  },
+  {
+    "name": "Asahakuryū",
+    "image": ""
   }
 ]

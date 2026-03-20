@@ -290,6 +290,7 @@
     let total = 0;
     let answered = false;
     let currentAnswer = null;
+    let winStreak = 0;
 
     const scoreEl = document.getElementById("score");
     const photoContainer = document.getElementById("photo-container");
@@ -422,10 +423,17 @@
       if (normalizeName(currentAnswer.name) === selected) {
         correct++;
         stats[currentAnswer.name].correct++;
+        winStreak++;
         feedbackEl.textContent = "Correct!";
         feedbackEl.className = "correct";
+        if (winStreak === 8) {
+          const utt = new SpeechSynthesisUtterance("勝ち越し");
+          utt.lang = "ja-JP";
+          speechSynthesis.speak(utt);
+        }
       } else {
         stats[currentAnswer.name].wrong++;
+        winStreak = 0;
         feedbackEl.textContent = `Wrong! It was ${currentAnswer.name}`;
         feedbackEl.className = "wrong";
       }
@@ -450,6 +458,7 @@
       const stats = loadStats();
       if (!stats[currentAnswer.name]) stats[currentAnswer.name] = { correct: 0, wrong: 0 };
       stats[currentAnswer.name].wrong++;
+      winStreak = 0;
 
       feedbackEl.textContent = `It's ${currentAnswer.name}`;
       feedbackEl.className = "wrong";
