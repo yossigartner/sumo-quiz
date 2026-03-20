@@ -39,7 +39,8 @@
 
     #photo-container {
       width: 300px;
-      height: 380px;
+      max-width: calc(100vw - 32px);
+      aspect-ratio: 300 / 380;
       border-radius: 12px;
       overflow: hidden;
       background: #16213e;
@@ -58,7 +59,9 @@
     #options {
       margin: 24px 0;
       width: 340px;
+      max-width: calc(100vw - 32px);
       display: flex;
+      flex-wrap: wrap;
       gap: 12px;
       align-items: center;
     }
@@ -133,6 +136,7 @@
 
     #progress-container {
       width: 340px;
+      max-width: calc(100vw - 32px);
       margin-bottom: 16px;
     }
 
@@ -163,6 +167,7 @@
 
     #stats-panel {
       width: 340px;
+      max-width: calc(100vw - 32px);
       margin-top: 24px;
       margin-bottom: 32px;
     }
@@ -238,6 +243,13 @@
     #idk-btn:disabled {
       opacity: 0.4;
       cursor: default;
+    }
+
+    @media (max-width: 400px) {
+      #logo { width: 68px; height: 68px; margin-top: 18px; }
+      h1 { font-size: 1.4rem; }
+      #guess-input { flex-basis: 100%; }
+      #submit-btn, #idk-btn { flex: 1; }
     }
   </style>
 </head>
