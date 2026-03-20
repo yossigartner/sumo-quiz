@@ -426,7 +426,7 @@
         winStreak++;
         feedbackEl.textContent = "Correct!";
         feedbackEl.className = "correct";
-        if (winStreak === 8) {
+        if (correct === 8 && (total - correct) < 8) {
           const utt = new SpeechSynthesisUtterance("勝ち越し");
           utt.lang = "ja-JP";
           speechSynthesis.speak(utt);
