@@ -18,8 +18,16 @@
       align-items: center;
     }
 
+    #logo {
+      margin-top: 28px;
+      width: 88px;
+      height: 88px;
+      display: block;
+      filter: drop-shadow(0 4px 12px rgba(233, 69, 96, 0.35));
+    }
+
     h1 {
-      margin: 24px 0 8px;
+      margin: 10px 0 8px;
       font-size: 1.8rem;
     }
 
@@ -234,6 +242,7 @@
   </style>
 </head>
 <body>
+  <img id="logo" src="logo.svg" alt="Sumo Quiz Logo">
   <h1>Sumo Wrestler Quiz</h1>
   <p id="score"></p>
   <div id="progress-container">
