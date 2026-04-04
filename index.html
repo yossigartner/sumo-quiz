@@ -431,6 +431,39 @@
 
     #redo-elim-btn:hover { border-color: #e94560; color: #e94560; }
 
+    #music-btn {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid #333;
+      background: #16213e;
+      color: #666;
+      font-size: 1.15rem;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    #music-btn:hover { border-color: #888; color: #ccc; }
+
+    #music-btn.music-on {
+      border-color: #e94560;
+      color: #e94560;
+      background: rgba(233, 69, 96, 0.12);
+      animation: music-pulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes music-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.3); }
+      50%       { box-shadow: 0 0 0 8px rgba(233, 69, 96, 0); }
+    }
+
     @media (max-width: 400px) {
       #logo { width: 68px; height: 68px; margin-top: 18px; }
       h1 { font-size: 1.4rem; }
@@ -915,6 +948,179 @@
         document.getElementById("loading").textContent = "Failed to load wrestlers.json. Make sure to serve via a local server (python3 -m http.server).";
         console.error(err);
       });
+  </script>
+  <button id="music-btn" title="Play lofi BGM">♪</button>
+
+  <script>
+  // ─── LOFI JAPANESE BGM (Web Audio API — no external files) ────────────────
+  (function () {
+    let ctx = null, master = null, musicOn = false, loopTimer = null;
+
+    const BPM = 74;
+    const B   = 60 / BPM;   // one beat in seconds
+    const BAR = B * 4;
+
+    function hz(name, oct) {
+      const s = {C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11};
+      return 440 * Math.pow(2, (s[name] - 9 + (oct - 4) * 12) / 12);
+    }
+
+    function boot() {
+      if (!ctx) {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        master = ctx.createGain();
+        master.gain.value = 0.42;
+        master.connect(ctx.destination);
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+      return ctx;
+    }
+
+    // Piano-like note: triangle wave + lofi LPF + subtle echo
+    function piano(f, t, dur, vol, type = 'triangle') {
+      const ac = boot();
+      const osc = ac.createOscillator(), env = ac.createGain();
+      const lpf = ac.createBiquadFilter();
+      const dly = ac.createDelay(1.0), dlyGain = ac.createGain();
+
+      lpf.type = 'lowpass'; lpf.frequency.value = 1700; lpf.Q.value = 0.5;
+      dly.delayTime.value = B * 0.66;
+      dlyGain.gain.value = 0.18;
+
+      osc.type = type;
+      osc.frequency.value = f;
+      osc.detune.value = (Math.random() - 0.5) * 9; // warm lofi detune
+
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(vol, t + 0.018);
+      env.gain.setValueAtTime(vol * 0.6, t + 0.07);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+      osc.connect(lpf); lpf.connect(env);
+      env.connect(master);
+      env.connect(dly); dly.connect(dlyGain); dlyGain.connect(master);
+
+      osc.start(t);
+      osc.stop(t + dur + dly.delayTime.value + 0.1);
+    }
+
+    // Soft sustained pad chord note
+    function padNote(f, t, dur, vol) {
+      const ac = boot();
+      const osc = ac.createOscillator(), env = ac.createGain();
+      const lpf = ac.createBiquadFilter();
+      lpf.type = 'lowpass'; lpf.frequency.value = 650;
+      osc.type = 'sine'; osc.frequency.value = f;
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(vol, t + 0.9);
+      env.gain.setValueAtTime(vol, t + dur - 1.0);
+      env.gain.linearRampToValueAtTime(0, t + dur);
+      osc.connect(lpf); lpf.connect(env); env.connect(master);
+      osc.start(t); osc.stop(t + dur + 0.1);
+    }
+
+    // Kick drum (pitch-drop sine)
+    function kick(t) {
+      const ac = boot();
+      const osc = ac.createOscillator(), env = ac.createGain();
+      osc.frequency.setValueAtTime(130, t);
+      osc.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+      env.gain.setValueAtTime(0.28, t);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      osc.connect(env); env.connect(master);
+      osc.start(t); osc.stop(t + 0.32);
+    }
+
+    // Hi-hat (filtered white noise)
+    function hat(t, vol) {
+      const ac = boot();
+      const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.04), ac.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = ac.createBufferSource(); src.buffer = buf;
+      const hpf = ac.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 7500;
+      const env = ac.createGain();
+      env.gain.setValueAtTime(vol, t);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+      src.connect(hpf); hpf.connect(env); env.connect(master);
+      src.start(t); src.stop(t + 0.05);
+    }
+
+    function scheduleLoop(t) {
+      if (!musicOn) return;
+
+      // A minor pentatonic: A  C  D  E  G
+      const A2=hz('A',2), C3=hz('C',3), D3=hz('D',3), E3=hz('E',3), G3=hz('G',3);
+      const A3=hz('A',3), C4=hz('C',4), D4=hz('D',4), E4=hz('E',4), G4=hz('G',4);
+
+      // ── Melody over 8 bars (positions in beats) ──────────────────────
+      [
+        // bar 1
+        [E4, 0.0,  1.8], [D4, 2.0, 1.2], [C4, 3.0, 1.4],
+        // bar 2
+        [A3, 4.0,  2.2], [G3, 6.5, 0.8], [A3, 7.2, 1.0],
+        // bar 3
+        [C4, 8.0,  0.9], [D4, 9.0, 0.9], [E4, 10.0, 2.0],
+        // bar 4
+        [D4, 12.0, 1.5], [C4, 14.0, 0.9], [A3, 15.2, 1.8],
+        // bar 5
+        [G4, 16.0, 1.5], [E4, 17.5, 0.9], [D4, 18.5, 1.5],
+        // bar 6
+        [C4, 20.0, 2.5], [A3, 22.5, 0.9], [C4, 23.5, 1.2],
+        // bar 7
+        [E4, 24.0, 0.9], [D4, 25.0, 0.9], [C4, 26.0, 0.9], [A3, 27.0, 1.5],
+        // bar 8
+        [A3, 28.0, 2.0], [C4, 30.0, 0.9], [E4, 31.0, 2.0],
+      ].forEach(([f, b, d]) => piano(f, t + b * B, d * B, 0.2));
+
+      // ── Bass — one root note per bar ──────────────────────────────────
+      [[A2,0],[A2,1],[C3,2],[D3,3],[E3,4],[D3,5],[A2,6],[A2,7]]
+        .forEach(([f, bar]) => piano(f, t + BAR * bar, BAR * 0.55, 0.25, 'sine'));
+
+      // ── Pads — 2 bars each (all notes from A minor pentatonic) ────────
+      [[A3,C4,E4],[C3,E3,G3],[D3,A3,E4],[E3,G3,C4]].forEach((chord, i) => {
+        chord.forEach(f => padNote(f, t + BAR * i * 2, BAR * 2.1, 0.055));
+      });
+
+      // ── Percussion ───────────────────────────────────────────────────
+      for (let bar = 0; bar < 8; bar++) {
+        const bt = t + BAR * bar;
+        kick(bt);                          // beat 1
+        kick(bt + B * 2 + 0.02);          // beat 3 (slight swing feel)
+        for (let h = 0; h < 8; h++) {
+          hat(bt + B * h * 0.5, h % 2 === 0 ? 0.032 : 0.018); // swing accent
+        }
+      }
+
+      // Schedule next loop slightly before end to prevent silence gap
+      loopTimer = setTimeout(
+        () => scheduleLoop(boot().currentTime + 0.1),
+        (BAR * 8 - 0.3) * 1000
+      );
+    }
+
+    function toggleMusic() {
+      const btn = document.getElementById('music-btn');
+      if (!musicOn) {
+        musicOn = true;
+        boot();
+        scheduleLoop(ctx.currentTime + 0.12);
+        btn.classList.add('music-on');
+        btn.title = 'Click to mute';
+      } else {
+        musicOn = false;
+        clearTimeout(loopTimer); loopTimer = null;
+        if (master) {
+          master.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.7);
+          setTimeout(() => { if (master && !musicOn) master.gain.value = 0.42; }, 900);
+        }
+        btn.classList.remove('music-on');
+        btn.title = 'Play lofi BGM';
+      }
+    }
+
+    document.getElementById('music-btn').addEventListener('click', toggleMusic);
+  })();
   </script>
 </body>
 </html>
