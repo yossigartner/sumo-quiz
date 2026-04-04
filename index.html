@@ -285,6 +285,152 @@
       letter-spacing: 0.03em;
     }
 
+    #mode-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 18px;
+      background: #16213e;
+      border-radius: 10px;
+      padding: 4px;
+      width: 340px;
+      max-width: calc(100vw - 32px);
+    }
+
+    .mode-tab {
+      flex: 1;
+      padding: 8px;
+      font-size: 0.9rem;
+      border: none;
+      border-radius: 7px;
+      background: transparent;
+      color: #aaa;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .mode-tab.active {
+      background: #e94560;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .mode-tab:hover:not(.active) { color: #eee; }
+
+    #elim-ui {
+      width: 340px;
+      max-width: calc(100vw - 32px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      margin: 20px 0;
+    }
+
+    #elim-progress-text {
+      font-size: 0.9rem;
+      color: #aaa;
+    }
+
+    #elim-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: #16213e;
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid #333;
+    }
+
+    #elim-bar-fill {
+      height: 100%;
+      background: #4ecca3;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    #elim-buttons {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+
+    #unknown-btn {
+      flex: 1;
+      padding: 14px;
+      font-size: 1rem;
+      border: 2px solid #e94560;
+      border-radius: 10px;
+      background: transparent;
+      color: #e94560;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    #unknown-btn:hover { background: #e94560; color: #fff; }
+
+    #know-btn {
+      flex: 1;
+      padding: 14px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 10px;
+      background: #4ecca3;
+      color: #1a1a2e;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    #know-btn:hover { background: #3ab890; }
+
+    #elim-hint {
+      font-size: 0.75rem;
+      color: #555;
+    }
+
+    #training-summary {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      width: 340px;
+      max-width: calc(100vw - 32px);
+      margin: 20px 0;
+      text-align: center;
+    }
+
+    #summary-text {
+      color: #aaa;
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    #start-training-btn {
+      padding: 12px 36px;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: 10px;
+      background: #e94560;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #start-training-btn:hover:not(:disabled) { background: #c73652; }
+    #start-training-btn:disabled { opacity: 0.4; cursor: default; }
+
+    #redo-elim-btn {
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      border: 1px solid #555;
+      border-radius: 8px;
+      background: transparent;
+      color: #aaa;
+      cursor: pointer;
+    }
+
+    #redo-elim-btn:hover { border-color: #e94560; color: #e94560; }
+
     @media (max-width: 400px) {
       #logo { width: 68px; height: 68px; margin-top: 18px; }
       h1 { font-size: 1.4rem; }
@@ -297,6 +443,10 @@
   <img id="logo" src="logo.svg" alt="Sumo Quiz Logo">
   <h1>Sumo Wrestler Quiz</h1>
   <p id="score"></p>
+  <div id="mode-tabs">
+    <button id="tab-quiz" class="mode-tab active">Quiz</button>
+    <button id="tab-training" class="mode-tab">Training Mode</button>
+  </div>
   <div id="progress-container">
     <div id="progress-label"><span>Mastered</span><span id="progress-text">0 / 0</span></div>
     <div id="progress-bar-bg"><div id="progress-bar-fill"></div></div>
@@ -320,6 +470,22 @@
   <p id="feedback"></p>
   <button id="next-btn">Next</button>
 
+  <div id="elim-ui">
+    <div id="elim-progress-text"></div>
+    <div id="elim-bar-bg"><div id="elim-bar-fill"></div></div>
+    <div id="elim-buttons">
+      <button id="unknown-btn">Don't Know</button>
+      <button id="know-btn">I Know This</button>
+    </div>
+    <div id="elim-hint">← / N &nbsp;·&nbsp; Know / Y →</div>
+  </div>
+
+  <div id="training-summary">
+    <p id="summary-text"></p>
+    <button id="start-training-btn">Start Training</button>
+    <button id="redo-elim-btn">Redo Elimination</button>
+  </div>
+
   <details id="stats-panel">
     <summary>Show progress</summary>
     <div id="stats-grid"></div>
@@ -328,6 +494,7 @@
 
   <script>
     const STORAGE_KEY = "sumo-quiz-stats";
+    const KNOWN_KEY   = "sumo-quiz-known";
     const BASE_WEIGHT = 1;
     const SCALE_WEIGHT = 9;
     const UNSEEN_ERROR_RATE = 0.5;
@@ -338,6 +505,25 @@
     let answered = false;
     let currentAnswer = null;
     let winStreak = 0;
+
+    // Training mode state
+    let gameMode = "quiz";          // "quiz" | "elimination" | "summary" | "training"
+    let eliminationQueue = [];
+    let knownSet = new Set();
+
+    function loadKnown() {
+      try { return new Set(JSON.parse(localStorage.getItem(KNOWN_KEY)) || []); }
+      catch { return new Set(); }
+    }
+    function saveKnown() {
+      localStorage.setItem(KNOWN_KEY, JSON.stringify([...knownSet]));
+    }
+    function hasEliminationData() {
+      return localStorage.getItem(KNOWN_KEY) !== null;
+    }
+    function getUnknownPool() {
+      return wrestlers.filter(w => !knownSet.has(w.name));
+    }
 
     const scoreEl = document.getElementById("score");
     const photoContainer = document.getElementById("photo-container");
@@ -376,15 +562,15 @@
       return BASE_WEIGHT + errorRate * SCALE_WEIGHT;
     }
 
-    function weightedPick(stats) {
-      const weights = wrestlers.map(w => computeWeight(w.name, stats));
+    function weightedPick(pool, stats) {
+      const weights = pool.map(w => computeWeight(w.name, stats));
       const total = weights.reduce((a, b) => a + b, 0);
       let r = Math.random() * total;
-      for (let i = 0; i < wrestlers.length; i++) {
+      for (let i = 0; i < pool.length; i++) {
         r -= weights[i];
-        if (r <= 0) return wrestlers[i];
+        if (r <= 0) return pool[i];
       }
-      return wrestlers[wrestlers.length - 1];
+      return pool[pool.length - 1];
     }
 
     function populateDropdown() {
@@ -398,14 +584,15 @@
     }
 
     function updateProgress(stats) {
-      const mastered = wrestlers.filter(w => {
+      const pool = gameMode === "training" ? getUnknownPool() : wrestlers;
+      const mastered = pool.filter(w => {
         const s = getWrestlerStats(stats, w.name);
         const attempts = s.correct + s.wrong;
         return attempts >= 3 && (s.wrong / attempts) < 0.25;
       }).length;
-      const pct = wrestlers.length ? (mastered / wrestlers.length) * 100 : 0;
+      const pct = pool.length ? (mastered / pool.length) * 100 : 0;
       progressFill.style.width = `${pct}%`;
-      progressText.textContent = `${mastered} / ${wrestlers.length}`;
+      progressText.textContent = `${mastered} / ${pool.length}`;
     }
 
     function renderStatsPanel(stats) {
@@ -433,7 +620,25 @@
       scoreEl.textContent = `Score: ${correct} / ${total}`;
     }
 
+    function showWrestlerPhoto(wrestler) {
+      const img = document.createElement("img");
+      img.src = `wiki_images/${encodeURIComponent(wrestler.image)}`;
+      img.alt = "Sumo wrestler";
+      photoContainer.innerHTML = "";
+      photoContainer.appendChild(img);
+    }
+
     function loadRound() {
+      const pool = gameMode === "training" ? getUnknownPool() : wrestlers;
+      if (pool.length === 0) {
+        photoContainer.innerHTML = `<div style="text-align:center;padding:20px;color:#4ecca3;font-size:1.05rem;font-weight:600;line-height:1.6">
+          Training pool mastered!<br>
+          <span style="font-size:0.85rem;color:#888;font-weight:400">Redo elimination to refresh your pool</span>
+        </div>`;
+        feedbackEl.textContent = "";
+        nextBtn.style.display = "none";
+        return;
+      }
       const stats = loadStats();
       answered = false;
       nextBtn.style.display = "none";
@@ -444,13 +649,8 @@
       submitBtn.disabled = false;
       idkBtn.disabled = false;
 
-      currentAnswer = weightedPick(stats);
-
-      const img = document.createElement("img");
-      img.src = `wiki_images/${encodeURIComponent(currentAnswer.image)}`;
-      img.alt = "Sumo wrestler";
-      photoContainer.innerHTML = "";
-      photoContainer.appendChild(img);
+      currentAnswer = weightedPick(pool, stats);
+      showWrestlerPhoto(currentAnswer);
     }
 
     submitBtn.addEventListener("click", () => {
@@ -524,6 +724,120 @@
         updateProgress({});
       }
     });
+
+    // === TRAINING MODE ===
+
+    function setUIMode(mode) {
+      gameMode = mode;
+      const isQuizLike = mode === "quiz" || mode === "training";
+      const isElim = mode === "elimination";
+      const isSummary = mode === "summary";
+
+      document.getElementById("tab-quiz").classList.toggle("active", mode === "quiz");
+      document.getElementById("tab-training").classList.toggle("active", mode !== "quiz");
+
+      document.getElementById("score").style.display = isQuizLike ? "" : "none";
+      document.getElementById("progress-container").style.display = isQuizLike ? "" : "none";
+      document.getElementById("options").style.display = isQuizLike ? "" : "none";
+      document.getElementById("stats-panel").style.display = isQuizLike ? "" : "none";
+      feedbackEl.style.display = isQuizLike ? "" : "none";
+
+      photoContainer.style.display = (isQuizLike || isElim) ? "" : "none";
+
+      document.getElementById("elim-ui").style.display = isElim ? "flex" : "none";
+      document.getElementById("training-summary").style.display = isSummary ? "flex" : "none";
+
+      if (!isQuizLike) nextBtn.style.display = "none";
+    }
+
+    function startElimination() {
+      knownSet = new Set();
+      eliminationQueue = [...wrestlers].sort(() => Math.random() - 0.5);
+      setUIMode("elimination");
+      nextElimination();
+    }
+
+    function nextElimination() {
+      if (eliminationQueue.length === 0) {
+        saveKnown();
+        showSummary();
+        return;
+      }
+      const reviewed = wrestlers.length - eliminationQueue.length;
+      const pct = (reviewed / wrestlers.length) * 100;
+      document.getElementById("elim-progress-text").textContent =
+        `${reviewed} / ${wrestlers.length} reviewed · ${knownSet.size} known`;
+      document.getElementById("elim-bar-fill").style.width = `${pct}%`;
+      showWrestlerPhoto(eliminationQueue[0]);
+    }
+
+    function markKnown() {
+      if (gameMode !== "elimination" || eliminationQueue.length === 0) return;
+      knownSet.add(eliminationQueue.shift().name);
+      nextElimination();
+    }
+
+    function markUnknown() {
+      if (gameMode !== "elimination" || eliminationQueue.length === 0) return;
+      eliminationQueue.shift();
+      nextElimination();
+    }
+
+    function showSummary() {
+      const unknowns = getUnknownPool();
+      const known = wrestlers.length - unknowns.length;
+      document.getElementById("summary-text").innerHTML =
+        `You know <strong style="color:#4ecca3">${known}</strong> wrestler${known !== 1 ? "s" : ""}.<br>` +
+        `Training on <strong style="color:#e94560">${unknowns.length}</strong> unknown${unknowns.length !== 1 ? "s" : ""}.`;
+      const startBtn = document.getElementById("start-training-btn");
+      startBtn.disabled = unknowns.length === 0;
+      startBtn.textContent = unknowns.length === 0 ? "No unknowns to train!" : "Start Training";
+      setUIMode("summary");
+    }
+
+    function startTraining() {
+      correct = 0;
+      total = 0;
+      setUIMode("training");
+      const stats = loadStats();
+      updateProgress(stats);
+      updateScore();
+      loadRound();
+    }
+
+    document.getElementById("tab-quiz").addEventListener("click", () => {
+      if (wrestlers.length === 0) return;
+      correct = 0;
+      total = 0;
+      setUIMode("quiz");
+      const stats = loadStats();
+      updateProgress(stats);
+      updateScore();
+      loadRound();
+    });
+
+    document.getElementById("tab-training").addEventListener("click", () => {
+      if (wrestlers.length === 0) return;
+      knownSet = loadKnown();
+      if (!hasEliminationData()) {
+        startElimination();
+      } else {
+        showSummary();
+      }
+    });
+
+    document.getElementById("unknown-btn").addEventListener("click", markUnknown);
+    document.getElementById("know-btn").addEventListener("click", markKnown);
+    document.getElementById("start-training-btn").addEventListener("click", startTraining);
+    document.getElementById("redo-elim-btn").addEventListener("click", startElimination);
+
+    document.addEventListener("keydown", e => {
+      if (gameMode !== "elimination") return;
+      if (e.key === "ArrowRight" || e.key === "y" || e.key === "Y") markKnown();
+      if (e.key === "ArrowLeft"  || e.key === "n" || e.key === "N") markUnknown();
+    });
+
+    // === BASHO COUNTDOWN ===
 
     const BASHO_SCHEDULE = [
       { name: "Hatsu Basho",  start: new Date("2026-01-11"), end: new Date("2026-01-25"), location: "Tokyo" },
