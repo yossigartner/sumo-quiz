@@ -245,6 +245,46 @@
       cursor: default;
     }
 
+    #basho-countdown {
+      width: 340px;
+      max-width: calc(100vw - 32px);
+      background: #16213e;
+      border: 1px solid #2a2a4a;
+      border-radius: 10px;
+      padding: 10px 16px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    #basho-label {
+      font-size: 0.75rem;
+      color: #e94560;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    #basho-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #eee;
+    }
+
+    #basho-date {
+      font-size: 0.8rem;
+      color: #888;
+      margin: 1px 0 6px;
+    }
+
+    #basho-timer {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #eee;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.03em;
+    }
+
     @media (max-width: 400px) {
       #logo { width: 68px; height: 68px; margin-top: 18px; }
       h1 { font-size: 1.4rem; }
@@ -261,6 +301,13 @@
     <div id="progress-label"><span>Mastered</span><span id="progress-text">0 / 0</span></div>
     <div id="progress-bar-bg"><div id="progress-bar-fill"></div></div>
   </div>
+  <div id="basho-countdown">
+    <div id="basho-label">Next Basho</div>
+    <div id="basho-name"></div>
+    <div id="basho-date"></div>
+    <div id="basho-timer"></div>
+  </div>
+
   <div id="photo-container">
     <span id="loading">Loading...</span>
   </div>
@@ -477,6 +524,67 @@
         updateProgress({});
       }
     });
+
+    const BASHO_SCHEDULE = [
+      { name: "Hatsu Basho",  start: new Date("2026-01-11"), end: new Date("2026-01-25"), location: "Tokyo" },
+      { name: "Haru Basho",   start: new Date("2026-03-08"), end: new Date("2026-03-22"), location: "Osaka" },
+      { name: "Natsu Basho",  start: new Date("2026-05-10"), end: new Date("2026-05-24"), location: "Tokyo" },
+      { name: "Nagoya Basho", start: new Date("2026-07-12"), end: new Date("2026-07-26"), location: "Nagoya" },
+      { name: "Aki Basho",    start: new Date("2026-09-13"), end: new Date("2026-09-27"), location: "Tokyo" },
+      { name: "Kyushu Basho", start: new Date("2026-11-08"), end: new Date("2026-11-22"), location: "Fukuoka" },
+    ];
+
+    function getBashoStatus() {
+      const now = new Date();
+      for (const b of BASHO_SCHEDULE) {
+        if (now >= b.start && now <= b.end) return { basho: b, live: true };
+      }
+      for (const b of BASHO_SCHEDULE) {
+        if (now < b.start) return { basho: b, live: false };
+      }
+      return null;
+    }
+
+    function formatCountdown(ms) {
+      const s = Math.floor(ms / 1000);
+      const d = Math.floor(s / 86400);
+      const h = Math.floor((s % 86400) / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      const pad = n => String(n).padStart(2, "0");
+      return d > 0
+        ? `${d}d ${pad(h)}h ${pad(m)}m ${pad(sec)}s`
+        : `${pad(h)}h ${pad(m)}m ${pad(sec)}s`;
+    }
+
+    function updateBashoCountdown() {
+      const status = getBashoStatus();
+      const countdownEl = document.getElementById("basho-countdown");
+      if (!status) { countdownEl.style.display = "none"; return; }
+
+      const { basho, live } = status;
+      const startOpts = { month: "long", day: "numeric" };
+      const startStr = basho.start.toLocaleDateString("en-US", startOpts);
+      const endStr = basho.end.toLocaleDateString("en-US", { day: "numeric" });
+
+      document.getElementById("basho-name").textContent = basho.name;
+      document.getElementById("basho-date").textContent =
+        `${startStr}–${endStr}, ${basho.start.getFullYear()} · ${basho.location}`;
+
+      const timerEl = document.getElementById("basho-timer");
+      if (live) {
+        timerEl.textContent = "Live now!";
+        timerEl.style.color = "#4ecca3";
+        document.getElementById("basho-label").textContent = "Basho in Progress";
+      } else {
+        timerEl.textContent = formatCountdown(basho.start - new Date());
+        timerEl.style.color = "#eee";
+        document.getElementById("basho-label").textContent = "Next Basho";
+      }
+    }
+
+    updateBashoCountdown();
+    setInterval(updateBashoCountdown, 1000);
 
     fetch("wiki_images/wrestlers.json")
       .then(res => res.json())
