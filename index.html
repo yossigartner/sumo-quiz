@@ -464,11 +464,88 @@
       50%       { box-shadow: 0 0 0 8px rgba(233, 69, 96, 0); }
     }
 
+    /* ── Custom autocomplete dropdown ─────────────────────────── */
+    #autocomplete-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #1e2a42;
+      border: 1px solid #444;
+      border-top: none;
+      border-radius: 0 0 10px 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 200;
+      display: none;
+    }
+
+    #autocomplete-dropdown.open { display: block; }
+
+    .ac-option {
+      padding: 11px 14px;
+      font-size: 0.95rem;
+      color: #ddd;
+      cursor: pointer;
+      border-bottom: 1px solid #2a3a55;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .ac-option:last-child { border-bottom: none; }
+
+    .ac-option:hover,
+    .ac-option.highlighted {
+      background: #e94560;
+      color: #fff;
+    }
+
+    #options {
+      position: relative; /* anchor dropdown */
+    }
+
+    #guess-input-wrap {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Mobile compact layout ─────────────────────────────────── */
+    @media (max-width: 480px) {
+      #logo { width: 56px; height: 56px; margin-top: 12px; }
+      h1 { font-size: 1.25rem; margin: 6px 0 4px; }
+      #score { font-size: 0.9rem; margin-bottom: 10px; }
+
+      #mode-tabs { margin-bottom: 10px; }
+
+      #progress-container { margin-bottom: 8px; }
+
+      #basho-countdown { padding: 7px 12px; margin-bottom: 10px; }
+      #basho-label { font-size: 0.65rem; }
+      #basho-name { font-size: 0.85rem; }
+      #basho-date { font-size: 0.7rem; }
+      #basho-timer { font-size: 1rem; }
+
+      #photo-container {
+        width: 220px;
+        max-width: calc(100vw - 48px);
+        aspect-ratio: 220 / 278;
+      }
+
+      #options { margin: 14px 0; gap: 8px; }
+
+      #guess-input { padding: 10px 12px; font-size: 0.95rem; }
+      #submit-btn, #idk-btn { padding: 10px 14px; font-size: 0.95rem; flex: 1; }
+
+      #feedback { font-size: 0.95rem; }
+      #next-btn { padding: 10px 28px; font-size: 1rem; }
+
+      #stats-panel { margin-top: 14px; margin-bottom: 20px; }
+      #stats-grid { max-height: 180px; }
+    }
+
     @media (max-width: 400px) {
-      #logo { width: 68px; height: 68px; margin-top: 18px; }
-      h1 { font-size: 1.4rem; }
       #guess-input { flex-basis: 100%; }
-      #submit-btn, #idk-btn { flex: 1; }
     }
   </style>
 </head>
@@ -495,8 +572,10 @@
     <span id="loading">Loading...</span>
   </div>
   <div id="options">
-    <input id="guess-input" list="wrestler-list" placeholder="Type a wrestler name..." autocomplete="off">
-    <datalist id="wrestler-list"></datalist>
+    <div id="guess-input-wrap">
+      <input id="guess-input" placeholder="Type a wrestler name..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <div id="autocomplete-dropdown"></div>
+    </div>
     <button id="submit-btn">Submit</button>
     <button id="idk-btn">I don't know</button>
   </div>
@@ -561,7 +640,7 @@
     const scoreEl = document.getElementById("score");
     const photoContainer = document.getElementById("photo-container");
     const inputEl = document.getElementById("guess-input");
-    const datalistEl = document.getElementById("wrestler-list");
+    const dropdownEl = document.getElementById("autocomplete-dropdown");
     const submitBtn = document.getElementById("submit-btn");
     const feedbackEl = document.getElementById("feedback");
     const nextBtn = document.getElementById("next-btn");
@@ -606,15 +685,80 @@
       return pool[pool.length - 1];
     }
 
+    let sortedWrestlerNames = [];
+
     function populateDropdown() {
-      datalistEl.innerHTML = "";
-      const sorted = [...wrestlers].sort((a, b) => a.name.localeCompare(b.name));
-      sorted.forEach(w => {
-        const opt = document.createElement("option");
-        opt.value = normalizeName(w.name);
-        datalistEl.appendChild(opt);
-      });
+      sortedWrestlerNames = [...wrestlers]
+        .map(w => normalizeName(w.name))
+        .sort((a, b) => a.localeCompare(b));
     }
+
+    // ── Custom autocomplete ────────────────────────────────────────
+    let acHighlight = -1;
+
+    function showDropdown(query) {
+      const q = query.trim().toLowerCase();
+      dropdownEl.innerHTML = "";
+      acHighlight = -1;
+      if (!q) { dropdownEl.classList.remove("open"); return; }
+      const matches = sortedWrestlerNames.filter(n => n.toLowerCase().includes(q)).slice(0, 20);
+      if (matches.length === 0) { dropdownEl.classList.remove("open"); return; }
+      matches.forEach((name, i) => {
+        const div = document.createElement("div");
+        div.className = "ac-option";
+        div.textContent = name;
+        div.addEventListener("mousedown", e => {
+          e.preventDefault(); // prevent input blur before click registers
+          selectOption(name);
+        });
+        div.addEventListener("touchend", e => {
+          e.preventDefault();
+          selectOption(name);
+        });
+        dropdownEl.appendChild(div);
+      });
+      dropdownEl.classList.add("open");
+    }
+
+    function selectOption(name) {
+      inputEl.value = name;
+      dropdownEl.classList.remove("open");
+      dropdownEl.innerHTML = "";
+      acHighlight = -1;
+    }
+
+    function closeDropdown() {
+      dropdownEl.classList.remove("open");
+      acHighlight = -1;
+    }
+
+    inputEl.addEventListener("input", () => showDropdown(inputEl.value));
+
+    inputEl.addEventListener("blur", () => {
+      // Small delay so touchend on option fires first
+      setTimeout(closeDropdown, 150);
+    });
+
+    inputEl.addEventListener("keydown", e => {
+      const opts = dropdownEl.querySelectorAll(".ac-option");
+      if (!dropdownEl.classList.contains("open") || opts.length === 0) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        acHighlight = Math.min(acHighlight + 1, opts.length - 1);
+        opts.forEach((o, i) => o.classList.toggle("highlighted", i === acHighlight));
+        opts[acHighlight]?.scrollIntoView({ block: "nearest" });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        acHighlight = Math.max(acHighlight - 1, 0);
+        opts.forEach((o, i) => o.classList.toggle("highlighted", i === acHighlight));
+        opts[acHighlight]?.scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter" && acHighlight >= 0) {
+        e.preventDefault();
+        selectOption(opts[acHighlight].textContent);
+      } else if (e.key === "Escape") {
+        closeDropdown();
+      }
+    });
 
     function updateProgress(stats) {
       const pool = gameMode === "training" ? getUnknownPool() : wrestlers;
@@ -678,6 +822,7 @@
       feedbackEl.textContent = "";
       feedbackEl.className = "";
       inputEl.value = "";
+      closeDropdown();
       inputEl.disabled = false;
       submitBtn.disabled = false;
       idkBtn.disabled = false;
