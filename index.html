@@ -539,6 +539,126 @@
     /* ── basho-mid: no layout effect on desktop ── */
     #basho-mid { display: contents; }
 
+    #basho-countdown.basho-live {
+      cursor: pointer;
+      border-color: rgba(78, 204, 163, 0.3);
+      transition: border-color 0.2s;
+    }
+    #basho-countdown.basho-live:hover { border-color: #4ecca3; }
+
+    #basho-click-hint {
+      font-size: 0.7rem;
+      color: #4ecca3;
+      opacity: 0.65;
+      margin-top: 5px;
+    }
+
+    /* ── Scoreboard modal ── */
+    #scoreboard-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.78);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    #sb-panel {
+      background: #16213e;
+      border: 1px solid #2a2a4a;
+      border-radius: 14px;
+      width: 100%;
+      max-width: 420px;
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+    }
+
+    #sb-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #222;
+      flex-shrink: 0;
+    }
+
+    #sb-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #eee;
+    }
+
+    #sb-subtitle {
+      font-size: 0.78rem;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    #sb-close {
+      background: none;
+      border: none;
+      color: #777;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 2px;
+      flex-shrink: 0;
+    }
+    #sb-close:hover { color: #eee; }
+
+    #sb-content {
+      overflow-y: auto;
+      flex: 1;
+      padding: 6px 0;
+    }
+
+    .sb-loading, .sb-error {
+      text-align: center;
+      padding: 40px 16px;
+      color: #888;
+      font-size: 0.95rem;
+      line-height: 2;
+    }
+    .sb-error a { color: #4ecca3; text-decoration: none; }
+    .sb-error a:hover { text-decoration: underline; }
+
+    .sb-row {
+      display: flex;
+      align-items: center;
+      padding: 7px 16px;
+      border-bottom: 1px solid #1c2840;
+      gap: 10px;
+    }
+    .sb-row:last-child { border-bottom: none; }
+    .sb-row.sb-leader { background: rgba(78,204,163,0.06); }
+
+    .sb-pos {
+      width: 20px;
+      font-size: 0.72rem;
+      color: #555;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .sb-pos.sb-gold { color: #f5c842; font-weight: 700; }
+
+    .sb-name-wrap { flex: 1; min-width: 0; }
+    .sb-name { font-size: 0.9rem; color: #ddd; }
+    .sb-rank { font-size: 0.7rem; color: #555; }
+
+    .sb-record {
+      font-size: 0.88rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #4ecca3;
+      white-space: nowrap;
+    }
+    .sb-record.sb-absent { color: #666; }
+
     /* ── Mobile layout ── */
     @media (max-width: 600px) {
       #logo { width: 46px; height: 46px; margin-top: 10px; }
@@ -628,6 +748,7 @@
       <div id="basho-timer"></div>
     </div>
     <div id="basho-date"></div>
+    <div id="basho-click-hint"></div>
   </div>
 
   <div id="photo-container">
@@ -1122,18 +1243,120 @@
 
       const timerEl = document.getElementById("basho-timer");
       if (live) {
+        const day = Math.min(15, Math.floor((new Date() - basho.start) / 86400000) + 1);
         timerEl.textContent = "Live now!";
         timerEl.style.color = "#4ecca3";
-        document.getElementById("basho-label").textContent = "Basho in Progress";
+        document.getElementById("basho-label").textContent = `Day ${day} · Basho in Progress`;
+        countdownEl.classList.add("basho-live");
+        document.getElementById("basho-click-hint").textContent = "Tap to view standings ↗";
       } else {
         timerEl.textContent = formatCountdown(basho.start - new Date());
         timerEl.style.color = "#eee";
         document.getElementById("basho-label").textContent = "Next Basho";
+        countdownEl.classList.remove("basho-live");
+        document.getElementById("basho-click-hint").textContent = "";
       }
     }
 
     updateBashoCountdown();
     setInterval(updateBashoCountdown, 1000);
+
+    // === SCOREBOARD ===
+
+    document.getElementById("basho-countdown").addEventListener("click", () => {
+      const status = getBashoStatus();
+      if (!status || !status.live) return;
+      openScoreboard(status.basho);
+    });
+
+    function bashoIdFromDate(d) {
+      return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    function extractName(w) {
+      if (w.shikonaEn) return w.shikonaEn;
+      if (w.rikishi && w.rikishi.shikonaEn) return w.rikishi.shikonaEn;
+      return w.name || "—";
+    }
+
+    function extractRank(w) {
+      return w.rankEn || w.rank || "";
+    }
+
+    function extractRecord(w) {
+      const r = w.record || w;
+      return { wins: r.wins ?? 0, losses: r.losses ?? 0, absences: r.absences ?? 0 };
+    }
+
+    function renderScoreboard(wrestlers, basho) {
+      const day = Math.min(15, Math.floor((new Date() - basho.start) / 86400000) + 1);
+      document.getElementById("sb-title").textContent = basho.name;
+      document.getElementById("sb-subtitle").textContent = `Day ${day} · Makuuchi standings`;
+
+      const sorted = wrestlers
+        .filter(w => { const r = extractRecord(w); return r.wins + r.losses + r.absences > 0; })
+        .sort((a, b) => extractRecord(b).wins - extractRecord(a).wins);
+
+      if (sorted.length === 0) {
+        document.getElementById("sb-content").innerHTML =
+          `<div class="sb-loading">No results yet for today.</div>`;
+        return;
+      }
+
+      const maxWins = extractRecord(sorted[0]).wins;
+      const html = sorted.map((w, i) => {
+        const rec = extractRecord(w);
+        const isLeader = rec.wins === maxWins;
+        const recStr = rec.absences > 0
+          ? `${rec.wins}–${rec.losses} (${rec.absences}A)`
+          : `${rec.wins}–${rec.losses}`;
+        return `<div class="sb-row${isLeader ? " sb-leader" : ""}">
+          <span class="sb-pos${i < 3 ? " sb-gold" : ""}">${i + 1}</span>
+          <div class="sb-name-wrap">
+            <div class="sb-name">${extractName(w)}</div>
+            <div class="sb-rank">${extractRank(w)}</div>
+          </div>
+          <span class="sb-record${rec.absences === 15 ? " sb-absent" : ""}">${recStr}</span>
+        </div>`;
+      }).join("");
+
+      document.getElementById("sb-content").innerHTML = html;
+    }
+
+    async function openScoreboard(basho) {
+      const modal = document.getElementById("scoreboard-modal");
+      const day = Math.min(15, Math.floor((new Date() - basho.start) / 86400000) + 1);
+      modal.style.display = "flex";
+      document.getElementById("sb-title").textContent = basho.name;
+      document.getElementById("sb-subtitle").textContent = `Day ${day} · Makuuchi standings`;
+      document.getElementById("sb-content").innerHTML = `<div class="sb-loading">Loading standings…</div>`;
+
+      const bashoId = bashoIdFromDate(basho.start);
+      try {
+        const res = await fetch(`https://sumo-api.com/api/basho/${bashoId}/banzuke/Makuuchi`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const all = [...(data.east || []), ...(data.west || [])];
+        renderScoreboard(all, basho);
+      } catch {
+        document.getElementById("sb-content").innerHTML = `
+          <div class="sb-error">
+            Couldn't load standings.<br>
+            <a href="https://www.sumo.or.jp/En/nationalTournament/result/" target="_blank" rel="noopener">
+              View on JSA website ↗
+            </a>
+          </div>`;
+      }
+    }
+
+    function closeScoreboard() {
+      document.getElementById("scoreboard-modal").style.display = "none";
+    }
+
+    document.getElementById("sb-close").addEventListener("click", closeScoreboard);
+    document.getElementById("scoreboard-modal").addEventListener("click", e => {
+      if (e.target === document.getElementById("scoreboard-modal")) closeScoreboard();
+    });
 
     // === JAPAN FLIGHT COUNTDOWN ===
     const JAPAN_DEPARTURE = new Date("2026-05-21T15:05:00+03:00");
@@ -1336,5 +1559,18 @@
     document.getElementById('music-btn').addEventListener('click', toggleMusic);
   })();
   </script>
+
+  <div id="scoreboard-modal">
+    <div id="sb-panel">
+      <div id="sb-header">
+        <div>
+          <div id="sb-title"></div>
+          <div id="sb-subtitle"></div>
+        </div>
+        <button id="sb-close">×</button>
+      </div>
+      <div id="sb-content"></div>
+    </div>
+  </div>
 </body>
 </html>
