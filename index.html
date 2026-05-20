@@ -245,6 +245,40 @@
       cursor: default;
     }
 
+    #flight-countdown {
+      width: 340px;
+      max-width: calc(100vw - 32px);
+      background: #16213e;
+      border: 1px solid #3a2a10;
+      border-radius: 10px;
+      padding: 10px 16px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    #flight-label {
+      font-size: 0.75rem;
+      color: #f5a623;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    #flight-info {
+      font-size: 0.8rem;
+      color: #888;
+      margin: 1px 0 6px;
+    }
+
+    #flight-timer {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #f5a623;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.03em;
+    }
+
     #basho-countdown {
       width: 340px;
       max-width: calc(100vw - 32px);
@@ -520,6 +554,16 @@
 
       #progress-container { width: calc(100vw - 24px); margin-bottom: 6px; }
 
+      #flight-countdown {
+        width: calc(100vw - 24px);
+        padding: 7px 12px;
+        margin-bottom: 6px;
+        text-align: left;
+      }
+      #flight-label { font-size: 0.62rem; letter-spacing: 0.09em; margin-bottom: 2px; }
+      #flight-info { font-size: 0.68rem; margin: 2px 0 0; }
+      #flight-timer { font-size: 0.92rem; font-weight: 700; }
+
       /* Compact basho: label on top, then name ↔ timer on one line, date below */
       #basho-countdown {
         width: calc(100vw - 24px);
@@ -571,6 +615,11 @@
   <div id="progress-container">
     <div id="progress-label"><span>Mastered</span><span id="progress-text">0 / 0</span></div>
     <div id="progress-bar-bg"><div id="progress-bar-fill"></div></div>
+  </div>
+  <div id="flight-countdown">
+    <div id="flight-label">✈ Flight to Japan</div>
+    <div id="flight-info">May 21, 2026 · 15:05 Israel time</div>
+    <div id="flight-timer"></div>
   </div>
   <div id="basho-countdown">
     <div id="basho-label">Next Basho</div>
@@ -1085,6 +1134,19 @@
 
     updateBashoCountdown();
     setInterval(updateBashoCountdown, 1000);
+
+    // === JAPAN FLIGHT COUNTDOWN ===
+    const JAPAN_DEPARTURE = new Date("2026-05-21T15:05:00+03:00");
+
+    function updateFlightCountdown() {
+      const el = document.getElementById("flight-countdown");
+      const ms = JAPAN_DEPARTURE - new Date();
+      if (ms <= 0) { el.style.display = "none"; return; }
+      document.getElementById("flight-timer").textContent = formatCountdown(ms);
+    }
+
+    updateFlightCountdown();
+    setInterval(updateFlightCountdown, 1000);
 
     fetch("wiki_images/wrestlers.json")
       .then(res => res.json())
